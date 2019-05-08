@@ -1,0 +1,19 @@
+You can get the latest version at below link.
+https://sourceforge.net/projects/darwinop/
+
+for more information on Webots visit
+http://www.cyberbotics.com
+
+=====================================
+          ROBOTIS-OP2 v1.7.0
+=====================================
+>>> Date: 25 Mar 2015
+
+>>> New functionality/features
+    * First released.
+        
+>>> Changes
+    * First released.
+
+>>> Bug fixes
+    * First released.
