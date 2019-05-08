@@ -53,7 +53,7 @@ int main(void)
     BallTracker tracker = BallTracker();
     BallFollower follower = BallFollower();
 
-	//////////////////// Framework Initialize ////////////////////////////
+	//////////////////// Framework Initialize 初始化///////////////////////////
 	LinuxCM730 linux_cm730(U2D_DEV_NAME);     //将LinuxCM730这个类别名为linux_cm730
 	CM730 cm730(&linux_cm730);
 	if(MotionManager::GetInstance()->Initialize(&cm730) == false)
@@ -62,6 +62,7 @@ int main(void)
 			return 0;
 	}
 	///////////////////////////////////////////////////////////////////////
+
 	while(1)
 	{
 	    int value=0;
@@ -71,21 +72,28 @@ int main(void)
 	}
 
 
-	MotionManager::GetInstance()->AddModule((MotionModule*)Action::GetInstance());  //
-	MotionManager::GetInstance()->AddModule((MotionModule*)Head::GetInstance());  ///
-	MotionManager::GetInstance()->AddModule((MotionModule*)Walking::GetInstance());//
-    LinuxMotionTimer *motion_timer = new LinuxMotionTimer(MotionManager::GetInstance()); //
-    motion_timer->Start();//
-    MotionManager::GetInstance()->LoadINISettings(ini);  //
+	MotionManager::GetInstance()->AddModule((MotionModule*)Action::GetInstance());  //初始化
+	MotionManager::GetInstance()->AddModule((MotionModule*)Head::GetInstance());  ///初始化
+	MotionManager::GetInstance()->AddModule((MotionModule*)Walking::GetInstance());//初始化
+	LinuxMotionTimer *motion_timer = new LinuxMotionTimer(MotionManager::GetInstance()); //初始化  管理器 注册头部和步行模块,【还有计时模块（不确定）】
+	motion_timer->Start();																//初始化//
+	MotionManager::GetInstance()->LoadINISettings(ini);                            //初始化
 
-	int firm_ver = 0;
-	if(cm730.ReadByte(JointData::ID_HEAD_PAN, MX28::P_VERSION, &firm_ver, 0)  != CM730::SUCCESS)
-	{   
-		fprintf(stderr, "Can't read firmware version from Dynamixel ID %d!! \n\n", JointData::ID_HEAD_PAN);
+///////////////////////////////自己添加的读取陀螺仪的值///////////////////////////////////////////
+
+	printf("GFB_y:");    	if (cm730.ReadWord(CM730::P_GYRO_Y_L, &value, 0)		== CM730::SUCCESS)		printf("%3d\n", value);	else		printf("---");	printf(" GRL_x:");
+	if (cm730.ReadWord(CM730::ID_CM, CM730::P_GYRO_X_L, &value, 0) == CM730::SUCCESS)
+		printf("%3d", value);
+	else
+		printf("---");//////////////////////////////////////////////////////////////////////////////////////////////////////	////////////////////////////////如果出现问题就会再次初始化加载ini文件/////////////////////////////////////////////
+	int	firm_ver = 0;
+	//int CM730::ReadByte(int id, int address, int *pValue, int *error)
+	if(cm730.ReadByte(JointData::ID_HEAD_PAN, MX28::P_VERSION, &firm_ver, 0)  != CM730::SUCCESS)     //CM730::SUCCESS在CM730.h是public:enum{SUCCESS}   
+	{	fprintf(stderr, "Can't read firmware version from Dynamixel ID %d!! \n\n", JointData::ID_HEAD_PAN);
 		exit(0);
 	}   
 
-	if(0 < firm_ver && firm_ver < 27) 
+	if(0 < firm_ver && firm_ver < 27)         
 	{   
 #ifdef MX28_1024
 		Action::GetInstance()->LoadFile(MOTION_FILE_PATH);
@@ -107,27 +115,36 @@ int main(void)
 	}   
    else
 		exit(0);
-
-	Action::GetInstance()->m_Joint.SetEnableBody(true, true);
+	////////////////////////////////////////////////////////////////////////////////////////////////////////
+	Action::GetInstance()->m_Joint.SetEnableBody(true, true);    
     Head::GetInstance()->LoadINISettings(ini);
 	MotionManager::GetInstance()->SetEnable(true); //
 
 	Action::GetInstance()->Start(16);    //Start(1) 播放1序列的mp3动作
-	while(Action::GetInstance()->IsRunning()) usleep(8*1000);  //
-	Action::GetInstance()->m_Joint.SetEnableBody(false, false);
+	while(Action::GetInstance()->IsRunning()) usleep(8*1000);  //在运行动作前会执行一遍while花括号里面的东西，直到动作开始就结束执行花括号里面的东西
+	Action::GetInstance()->m_Joint.SetEnableBody(false, false);                  //给电机下电
 
-    Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
-    Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
-	MotionManager::GetInstance()->SetEnable(true);
+    Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);                  //给头部电机上电初始化
+    Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);         //给身体电机上电初始化
+	/*  在JointData.h中void SetEnableBodyWithoutHead(bool enable, bool exclusive);
+		void JointData::SetEnableBodyWithoutHead(bool enable, bool exclusive)
+		{
+			SetEnableRightArmOnly(enable, exclusive);
+			SetEnableLeftArmOnly(enable, exclusive);
+			SetEnableRightLegOnly(enable, exclusive);
+			SetEnableLeftLegOnly(enable, exclusive);
+		}
+	*/
+	MotionManager::GetInstance()->SetEnable(true);   //初始化
 	
 	vision_deal vd;
 	pthread_t video_id;
 
-	if(0 != pthread_create(&video_id, NULL, video_get, &vd.cap))
+	if(0 != pthread_create(&video_id, NULL, video_get, &vd.cap))   //创建线程
 	printf("Pthread can not be created\n");
 
-	LoadData(ini1, std::string("Red"), &(vd.hsv_RectOut[0]));
-	LoadData(ini1, std::string("Blue"), &(vd.hsv_RectIn[0]));
+	LoadData(ini1, std::string("Red"), &(vd.hsv_RectOut[0]));     //加载在目录下的保存好的hsv值
+	LoadData(ini1, std::string("Blue"), &(vd.hsv_RectIn[0]));     //加载在目录下的保存好的hsv值
 
 while(1)
 {
@@ -142,12 +159,28 @@ while(1)
 	bool key02 = false;
 	int accumulate = 0;
 
-	Head::GetInstance() ->MoveByAngle(0,40);//40
+	Head::GetInstance() ->MoveByAngle(0,40);//40     
+	/*
+		void Head::MoveByAngle(double pan, double tilt)
+	{
+		m_PanAngle = pan;
+		m_TiltAngle = tilt;
+
+		CheckLimit();  //用来防止电机转过极限位置
+	}*/
+
 
     while(1)
     {
-		vd.take_photo(&Frame);
-		a = vd.rect_mark(Mode,&err_angle);
+		vd.take_photo(&Frame)；/*    void vision_deal::take_photo(Mat* Frame) 
+									{
+										resize(*Frame, frame, Size(320, 240)); //获取摄像头一帧的大小
+										Point2f po = Point2f(160,120);         //获取图片中心点  为po
+
+										Mat rot_mat = getRotationMatrix2D (po,180,1.0);     //  #Point2f center：表示旋转的中心点，#double angle：表示旋转的角度，#double scale：图像缩放因子
+										warpAffine(frame,frame,rot_mat,frame.size());   //仿射变换  #输入图像    #输出图像     #尺寸由size指定，图像类型与原图像一致   #变换矩阵    #指定图像输出尺寸
+									}*/
+		a = vd.rect_mark(Mode,&err_angle);      //     Point vision_deal::rect_mark(int Mode,float *err_angle) 下一步需要去vision_deal.cpp看懂rect_mark 成员
 		pos.X = a.x;
 		pos.Y = a.y;
 
@@ -159,7 +192,7 @@ while(1)
 		tite_angle = Head::GetInstance()-> GetTiltAngle();
 //		printf("tite_angle = %f\n",tite_angle);
 
-#ifdef tracker_color
+#ifdef tracker_color   //宏定义了
 
 		if((a.x !=-1) && (a.y !=-1))
 		{
